@@ -16,6 +16,15 @@ const YEAR_LABEL = ['1st', '2nd', '3rd'];
 async function main() {
   console.log('🌱 Seeding Campus Connect...');
 
+  // Safe by default: never wipe existing bookings / maintenance / events.
+  // Use `npm run db:reset` (adds --reset) to deliberately start from scratch.
+  const reset = process.argv.includes('--reset');
+  if (!reset && (await prisma.department.count()) > 0) {
+    console.log('ℹ️  Database already has data - nothing changed.');
+    console.log('   To wipe everything and reload the sample data run: npm run db:reset');
+    return;
+  }
+
   // ---- Clear everything (children first) ----
   await prisma.auditLog.deleteMany();
   await prisma.notification.deleteMany();

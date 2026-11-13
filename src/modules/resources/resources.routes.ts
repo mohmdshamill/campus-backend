@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { ResourceController } from './resources.controller';
 import { authenticate } from '../../middleware/auth.middleware';
-import { requireCoordinatorOrAdmin, denyWebsiteAdmin } from '../../middleware/role.middleware';
+import { requireCoordinatorOrAdmin, denyWebsiteAdmin, requireSuperAdmin } from '../../middleware/role.middleware';
 import { validateRequest } from '../../middleware/validate.middleware';
 import { CreateResourceDto, UpdateResourceDto } from './resources.dto';
 
@@ -15,10 +15,10 @@ router.get('/', ResourceController.listResources);
 router.get('/:id', ResourceController.getResource);
 router.get('/:id/availability', ResourceController.getAvailability);
 
-// Coordinator & Website Admin resource operations
+// Only the Super Admin can add a resource; coordinators can edit / remove their own
 router.post(
   '/',
-  requireCoordinatorOrAdmin,
+  requireSuperAdmin,
   validateRequest(CreateResourceDto),
   ResourceController.createResource
 );

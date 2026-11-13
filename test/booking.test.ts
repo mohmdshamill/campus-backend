@@ -64,7 +64,7 @@ describe('Booking validation & conflict rules', () => {
   });
 
   it('rejects an overlapping slot and names who booked it', async () => {
-    await rejectsWith(book(lab.id, dayFromNow(10), '09:30', '11:00'), 409, /Already booked by .*9:00 AM - 10:30 AM/);
+    await rejectsWith(book(lab.id, dayFromNow(10), '09:30', '11:00'), 409, /Already (booked|requested) by .*9:00 AM - 10:30 AM/);
   });
 
   it('allows back-to-back bookings (end == next start)', async () => {
@@ -95,7 +95,7 @@ describe('Booking validation & conflict rules', () => {
   it('auditorium has no time limit (night event allowed)', async () => {
     const b = await book(auditorium.id, dayFromNow(10), '19:00', '23:30');
     assert.ok(b.id);
-    await rejectsWith(book(auditorium.id, dayFromNow(10), '22:00', '23:00'), 409, /Already booked by/);
+    await rejectsWith(book(auditorium.id, dayFromNow(10), '22:00', '23:00'), 409, /Already (booked|requested) by/);
   });
 
   it('conflicts with the academic timetable', async () => {
@@ -145,6 +145,16 @@ describe('Booking validation & conflict rules', () => {
     assert.equal(own.status, 'PENDING');
     const list = await BookingService.listBookings({ limit: 100 }, { id: coord!.id, role: Role.COORDINATOR, departmentId: coord!.departmentId });
     assert.ok(list.bookings.some((b: any) => b.id === own.id));
+  });
+
+  it('a rejected request still blocks the same date & time; a cancelled one frees it', async () => {
+    const date = dayFromNow(30);
+    const b = await book(lab.id, date, '09:00', '10:00');
+    await prisma.booking.update({ where: { id: b.id }, data: { status: 'REJECTED' } });
+    await rejectsWith(book(lab.id, date, '09:00', '10:00'), 409, /not available/);
+    await prisma.booking.update({ where: { id: b.id }, data: { status: 'CANCELLED' } });
+    const again = await book(lab.id, date, '09:00', '10:00');
+    assert.ok(again.id);
   });
 
   after(async () => {

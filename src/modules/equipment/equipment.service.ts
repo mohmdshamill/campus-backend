@@ -32,7 +32,7 @@ export class EquipmentService {
     limit?: number;
   }) {
     const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 20;
+    const limit = Math.min(Number(query.limit) || 500, 1000);
     const skip = (page - 1) * limit;
 
     const where: any = { isActive: true };
@@ -384,7 +384,7 @@ export class EquipmentService {
     limit?: number;
   }, actorUser: { id: string; role: Role }) {
     const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 20;
+    const limit = Math.min(Number(query.limit) || 500, 1000);
     const skip = (page - 1) * limit;
 
     const where: any = {};

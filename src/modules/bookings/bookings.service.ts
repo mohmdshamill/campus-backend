@@ -195,7 +195,8 @@ export class BookingService {
       const conflictingBooking = await tx.booking.findFirst({
         where: {
           resourceId: resource.id,
-          status: { in: [BookingStatus.APPROVED, BookingStatus.PENDING] },
+          // Same date & time = place cannot be booked again. Only a cancelled booking frees the slot.
+          status: { in: [BookingStatus.APPROVED, BookingStatus.PENDING, BookingStatus.REJECTED] },
           startDateTime: { lt: end },
           endDateTime: { gt: start },
         },
@@ -213,8 +214,16 @@ export class BookingService {
         const bookerDept = conflictingBooking.user?.department?.name || resource.department?.name || 'Another Department';
         const confStart = formatTime(conflictingBooking.startDateTime);
         const confEnd = formatTime(conflictingBooking.endDateTime);
+        const who = `${conflictingBooking.user?.name || 'another user'} (${bookerDept})`;
+        const when = `${to12(confStart)} - ${to12(confEnd)}`;
+        const msg =
+          conflictingBooking.status === BookingStatus.APPROVED
+            ? `Already booked by ${who}, ${when}.`
+            : conflictingBooking.status === BookingStatus.PENDING
+              ? `Already requested by ${who}, ${when} (waiting for approval).`
+              : `This date and time is not available (${who}, ${when} - request was rejected).`;
         throw new ConflictError(
-          `Already booked by ${conflictingBooking.user?.name || 'another user'} (${bookerDept}), ${to12(confStart)} - ${to12(confEnd)}.`,
+          msg,
           {
             conflictingBookingId: conflictingBooking.id,
             bookingCode: conflictingBooking.bookingCode,
@@ -331,7 +340,7 @@ export class BookingService {
     limit?: number;
   }, actorUser: { id: string; role: Role; departmentId?: string | null }) {
     const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 20;
+    const limit = Math.min(Number(query.limit) || 500, 1000);
     const skip = (page - 1) * limit;
 
     const where: any = {};

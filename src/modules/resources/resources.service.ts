@@ -29,7 +29,7 @@ export class ResourceService {
     limit?: number;
   }) {
     const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 20;
+    const limit = Math.min(Number(query.limit) || 500, 1000);
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -308,7 +308,7 @@ export class ResourceService {
     const bookings = await prisma.booking.findMany({
       where: {
         resourceId,
-        status: { in: [BookingStatus.APPROVED, BookingStatus.PENDING] },
+        status: { in: [BookingStatus.APPROVED, BookingStatus.PENDING, BookingStatus.REJECTED] },
         startDateTime: { lte: dayEnd },
         endDateTime: { gte: dayStart },
       },

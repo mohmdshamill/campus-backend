@@ -188,7 +188,7 @@ export class EventService {
     const conflictingBooking = await prisma.booking.findFirst({
       where: {
         resourceId: resource.id,
-        status: { in: [BookingStatus.APPROVED, BookingStatus.PENDING] },
+        status: { in: [BookingStatus.APPROVED, BookingStatus.PENDING, BookingStatus.REJECTED] },
         startDateTime: { lt: end },
         endDateTime: { gt: start },
       },

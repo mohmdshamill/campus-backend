@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+dist-ssr/
+build/
+coverage/
+*.tsbuildinfo
+
+# Environment & secrets (keep only .env.example in git)
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Caches
+.cache/
+.eslintcache
+.vite/
+.parcel-cache/
+.turbo/
+.npm/
+
+# Editors / IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temp / local
+*.local
+*.tmp
+*.bak
+_*.ts
+
+# Claude Code local settings
+.claude/
+
+# Prisma local SQLite (if ever used)
+prisma/*.db
+prisma/*.db-journal
+
+# Uploaded / generated files
+uploads/
+exports/

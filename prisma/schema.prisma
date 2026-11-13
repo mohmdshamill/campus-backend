@@ -1,0 +1,413 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  WEBSITE_ADMIN
+  COORDINATOR
+  STUDENT
+}
+
+enum ResourceType {
+  CLASSROOM
+  COMPUTER_LAB
+  SCIENCE_LAB
+  SEMINAR_HALL
+  AUDITORIUM
+  MEETING_ROOM
+  PROJECTOR
+  EQUIPMENT
+}
+
+enum ResourceMaintenanceStatus {
+  OPERATIONAL
+  UNDER_MAINTENANCE
+  RESTRICTED
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum EquipmentCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+enum EquipmentTransactionStatus {
+  REQUESTED
+  ISSUED
+  RETURNED
+  OVERDUE
+  DAMAGED_RETURN
+  LOST
+  REJECTED
+}
+
+enum MaintenanceStatus {
+  REPORTED
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationType {
+  BOOKING_SUBMITTED
+  BOOKING_APPROVED
+  BOOKING_REJECTED
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+  EQUIPMENT_ISSUED
+  EQUIPMENT_OVERDUE
+  MAINTENANCE_ALERT
+  SYSTEM
+}
+
+model User {
+  id             String                 @id @default(uuid())
+  name           String
+  email          String                 @unique
+  passwordHash   String
+  role           Role                   @default(STUDENT)
+  collegeId      String?                @unique
+  phone          String?
+  departmentId   String?
+  department     Department?            @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  memberships    DepartmentMembership[]
+  bookings       Booking[]              @relation("UserBookings")
+  approvedBookings Booking[]            @relation("ApprovedBookings")
+  statusChanges  BookingStatusHistory[]
+  equipmentTransactions EquipmentTransaction[] @relation("UserEquipmentTransactions")
+  issuedEquipmentTransactions EquipmentTransaction[] @relation("IssuedEquipmentTransactions")
+  reportedMaintenance MaintenanceRecord[] @relation("ReportedMaintenance")
+  resolvedMaintenance MaintenanceRecord[] @relation("ResolvedMaintenance")
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  resetTokens    PasswordResetToken[]
+
+  @@index([role])
+  @@index([departmentId])
+  @@index([email])
+}
+
+model Department {
+  id          String                 @id @default(uuid())
+  name        String
+  code        String                 @unique
+  description String?
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  users       User[]
+  members     DepartmentMembership[]
+  resources   Resource[]
+  equipment   Equipment[]
+  academicSchedules AcademicSchedule[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model DepartmentMembership {
+  id           String      @id @default(uuid())
+  userId       String
+  departmentId String
+  roleInDept   String      @default("COORDINATOR")
+  isPrimary    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId])
+  @@index([userId])
+  @@index([departmentId])
+}
+
+model Resource {
+  id                  String                    @id @default(uuid())
+  name                String
+  code                String                    @unique
+  type                ResourceType
+  description         String?
+  departmentId        String
+  department          Department                @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  building            String
+  roomNumber          String
+  floor               String?
+  capacity            Int
+  facilities          String?                   // Comma-separated or JSON list of facilities
+  operatingHoursStart String                    @default("08:00") // "HH:mm"
+  operatingHoursEnd   String                    @default("18:00") // "HH:mm"
+  minBookingMinutes   Int                       @default(30)
+  maxBookingMinutes   Int                       @default(240)
+  minAdvanceDays      Int                       @default(0)
+  maxAdvanceDays      Int                       @default(14)
+  requiresApproval    Boolean                   @default(true)
+  isActive            Boolean                   @default(true)
+  maintenanceStatus   ResourceMaintenanceStatus @default(OPERATIONAL)
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  bookings            Booking[]
+  academicSchedules   AcademicSchedule[]
+  collegeEvents       CollegeEvent[]
+  maintenanceRecords  MaintenanceRecord[]
+
+  @@index([type])
+  @@index([departmentId])
+  @@index([isActive])
+  @@index([maintenanceStatus])
+}
+
+model AcademicSchedule {
+  id             String      @id @default(uuid())
+  resourceId     String
+  resource       Resource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  departmentId   String
+  department     Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  courseName     String
+  courseCode     String
+  instructorName String
+  dayOfWeek      DayOfWeek
+  startTime      String      // "HH:mm"
+  endTime        String      // "HH:mm"
+  semester       String
+  academicYear   String
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([resourceId])
+  @@index([departmentId])
+  @@index([dayOfWeek])
+}
+
+model CollegeEvent {
+  id            String    @id @default(uuid())
+  resourceId    String
+  resource      Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  organizer     String
+  eventType     String    // e.g. "CONFERENCE", "SEMINAR", "CULTURAL", "WORKSHOP"
+  startDateTime DateTime
+  endDateTime   DateTime
+  isCancelled   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([resourceId])
+  @@index([startDateTime, endDateTime])
+}
+
+model Booking {
+  id                  String                 @id @default(uuid())
+  bookingCode         String                 @unique
+  resourceId          String
+  resource            Resource               @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  userId              String
+  user                User                   @relation("UserBookings", fields: [userId], references: [id], onDelete: Restrict)
+  startDateTime       DateTime
+  endDateTime         DateTime
+  purpose             String
+  attendeesCount      Int                    @default(1)
+  specialRequirements String?
+  status              BookingStatus          @default(PENDING)
+  approvedById        String?
+  approvedBy          User?                  @relation("ApprovedBookings", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejectionReason     String?
+  cancellationReason  String?
+  isAutoApproved      Boolean                @default(false)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  statusHistory       BookingStatusHistory[]
+  notifications       Notification[]
+
+  @@index([resourceId])
+  @@index([userId])
+  @@index([status])
+  @@index([startDateTime, endDateTime])
+  @@index([bookingCode])
+}
+
+model BookingStatusHistory {
+  id          String         @id @default(uuid())
+  bookingId   String
+  booking     Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fromStatus  BookingStatus?
+  toStatus    BookingStatus
+  changedById String?
+  changedBy   User?          @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  reason      String?
+  createdAt   DateTime       @default(now())
+
+  @@index([bookingId])
+  @@index([createdAt])
+}
+
+model Equipment {
+  id                String                 @id @default(uuid())
+  name              String
+  assetCode         String                 @unique
+  category          String
+  departmentId      String
+  department        Department             @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  quantityOwned     Int                    @default(1)
+  quantityAvailable Int                    @default(1)
+  condition         EquipmentCondition     @default(EXCELLENT)
+  location          String
+  description       String?
+  maintenanceStatus String                 @default("OPERATIONAL")
+  purchaseDate      DateTime?
+  isActive          Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  transactions      EquipmentTransaction[]
+
+  @@index([departmentId])
+  @@index([category])
+  @@index([assetCode])
+}
+
+model EquipmentTransaction {
+  id                 String                     @id @default(uuid())
+  equipmentId        String
+  equipment          Equipment                  @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  userId             String
+  user               User                       @relation("UserEquipmentTransactions", fields: [userId], references: [id], onDelete: Restrict)
+  issuedById         String?
+  issuedBy           User?                      @relation("IssuedEquipmentTransactions", fields: [issuedById], references: [id], onDelete: SetNull)
+  quantity           Int                        @default(1)
+  status             EquipmentTransactionStatus @default(REQUESTED)
+  requestDate        DateTime                   @default(now())
+  expectedReturnDate DateTime
+  actualReturnDate   DateTime?
+  purpose            String
+  notes              String?
+  conditionOnReturn  EquipmentCondition?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([equipmentId])
+  @@index([userId])
+  @@index([status])
+  @@index([expectedReturnDate])
+}
+
+model MaintenanceRecord {
+  id              String            @id @default(uuid())
+  resourceId      String
+  resource        Resource          @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  reportedById    String
+  reportedBy      User              @relation("ReportedMaintenance", fields: [reportedById], references: [id], onDelete: Restrict)
+  resolvedById    String?
+  resolvedBy      User?             @relation("ResolvedMaintenance", fields: [resolvedById], references: [id], onDelete: SetNull)
+  title           String
+  description     String
+  startDateTime   DateTime
+  endDateTime     DateTime
+  status          MaintenanceStatus @default(REPORTED)
+  priority        Priority          @default(MEDIUM)
+  resolutionNotes String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([resourceId])
+  @@index([status])
+  @@index([startDateTime, endDateTime])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType @default(SYSTEM)
+  link      String?
+  bookingId String?
+  booking   Booking?         @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail  String?
+  action     String   // e.g. "CREATE_BOOKING", "APPROVE_BOOKING", "CANCEL_BOOKING"
+  entityType String   // e.g. "Booking", "Resource", "Department", "Equipment"
+  entityId   String?
+  details    String?  // JSON stringified payload / changes
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
